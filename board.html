@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>게시판</title>
+<style>
+  :root{--bg:#f5f8fb;--card:#fff;--text:#111;--muted:#666;--primary:#0b69ff}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',Roboto,Arial;margin:0;background:var(--bg);color:var(--text)}
+  body.dark{--bg:#071024;--card:#0b1320;--text:#e6eef8;--muted:#9aa6b2;--primary:#4c9dff}
+  header{background:var(--card);border-bottom:1px solid rgba(0,0,0,0.06);position:sticky;top:0;padding:12px}
+  .wrap{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .logo{font-weight:800;color:var(--primary);font-size:20px;cursor:pointer}
+  h2{margin:20px}
+  ul{list-style:none;padding:0;margin:20px}
+  li{padding:8px;border-bottom:1px solid rgba(0,0,0,0.04)}
+  li:hover{background:rgba(11,105,255,0.04);cursor:pointer}
+  #writeBtn{background:var(--primary);color:#fff;border:0;padding:6px 12px;border-radius:6px;cursor:pointer;}
+  .controls{display:flex;gap:8px;align-items:center}
+  .moreBtn{background:transparent;border:1px solid rgba(0,0,0,0.06);padding:8px;border-radius:6px;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo" onclick="location.href='index.html'">WAVE</div>
+    <div class="controls">
+      <input id="searchInput" placeholder="검색 (제목/내용)">
+      <button id="searchBtn" class="moreBtn">검색</button>
+      <button id="writeBtn">글쓰기</button>
+    </div>
+  </div>
+</header>
+<h2 id="boardTitle"></h2>
+<ul id="postList"><li>로딩중...</li></ul>
+<div style="text-align:center;margin-bottom:40px">
+  <button id="loadMore" class="moreBtn">더보기</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, collection, query, where, orderBy, getDocs, limit, startAfter } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
+  authDomain: "wave-free-community.firebaseapp.com",
+  projectId: "wave-free-community",
+  storageBucket: "wave-free-community.firebasestorage.app",
+  messagingSenderId: "1072639024866",
+  appId: "1:1072639024866:web:934998f5e4a7eb02bd88bb"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const params = new URLSearchParams(location.search);
+const board = params.get('board')||'free';
+const boardNames = { free:"자유게시판", info:"정보게시판", stock:"주식정보", futures:"해외선물정보", profit:"수익인증" };
+document.getElementById('boardTitle').innerText = boardNames[board] || '게시판';
+
+let lastDoc = null;
+const PAGE_SIZE = 10;
+
+function relativeTime(ts){
+  if(!ts) return '';
+  const d = (ts.toDate ? ts.toDate() : new Date(ts));
+  const diff = Math.floor((Date.now() - d.getTime())/1000);
+  if(diff < 60) return `${diff}초 전`;
+  if(diff < 3600) return `${Math.floor(diff/60)}분 전`;
+  if(diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
+  return `${Math.floor(diff/86400)}일 전`;
+}
+
+async function loadPosts(reset=false, searchText=''){
+  const ul = document.getElementById('postList');
+  if(reset){ ul.innerHTML='로딩중...'; lastDoc=null; }
+  try{
+    let q;
+    if(searchText){
+      const all = await getDocs(collection(db,'posts'));
+      const filtered = [];
+      all.forEach(d=>{ const p=d.data(); if(((p.title||'')+' '+(p.content||'')).toLowerCase().includes(searchText.toLowerCase()) && p.board===board) filtered.push({id:d.id,data:p, createdAt: p.createdAt}); });
+      ul.innerHTML='';
+      filtered.slice(0,PAGE_SIZE).forEach(item=>{
+        const li=document.createElement('li');
+        const p=item.data; const time=relativeTime(p.createdAt);
+        li.innerHTML = `${p.pinned ? '<strong style="color:red">[공지]</strong> ' : ''}${p.title || '(제목없음)'} <span class='meta'>(${p.nickname || '익명'})</span>`;
+        li.addEventListener('click',()=>location.href=`post.html?id=${item.id}`);
+        ul.appendChild(li);
+      });
+      return;
+    }
+    if(!lastDoc){
+      q = query(collection(db,'posts'), where('board','==',board), orderBy('pinned','desc'), orderBy('createdAt','desc'), limit(PAGE_SIZE));
+    }else{
+      q = query(collection(db,'posts'), where('board','==',board), orderBy('pinned','desc'), orderBy('createdAt','desc'), startAfter(lastDoc), limit(PAGE_SIZE));
+    }
+    const snap = await getDocs(q);
+    if(snap.empty && reset){ ul.innerHTML='<li>게시글 없음</li>'; return; }
+    if(reset) ul.innerHTML='';
+    snap.forEach(docSnap=>{
+      const p=docSnap.data(); const li=document.createElement('li');
+      const time = relativeTime(p.createdAt);
+      li.innerHTML = `${p.pinned?'<strong style="color:red">[공지]</strong> ':''} ${p.imageUrl?'<img src="'+p.imageUrl+'" style="width:60px;height:60px;object-fit:cover;margin-right:8px;border-radius:4px;vertical-align:middle">':''}
+        <span><strong>${p.title||'(제목없음)'}</strong><div class="small">작성자: ${p.nickname||p.authorNickname||'익명'} · ${time} · ❤ ${(p.likes||[]).length} · 💬 ${p.commentCount||0}</div></span>`;
+      li.addEventListener('click',()=>location.href=`post.html?id=${docSnap.id}`);
+      ul.appendChild(li);
+    });
+    lastDoc = snap.docs[snap.docs.length-1];
+  }catch(e){ console.error(e); document.getElementById('postList').innerHTML='<li>로드 실패</li>'; }
+}
+
+document.getElementById('loadMore').addEventListener('click', ()=>loadPosts(false, document.getElementById('searchInput').value.trim()));
+
+document.getElementById('searchBtn').addEventListener('click', ()=>loadPosts(true, document.getElementById('searchInput').value.trim()));
+
+onAuthStateChanged(auth,user=>{
+  const btn=document.getElementById('writeBtn');
+  if(user){ btn.onclick=()=>location.href=`write.html${location.search}`; btn.style.display='inline-block'; }
+  else{ btn.onclick=()=>{ alert('로그인 후 이용 가능합니다.'); location.href='index.html'; }; btn.style.display='inline-block'; }
+});
+
+window.addEventListener('DOMContentLoaded', ()=>{ loadPosts(true); });
+
+</script>
+</body>
+</html>
