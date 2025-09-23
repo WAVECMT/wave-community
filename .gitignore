@@ -1,0 +1,26 @@
+# OS / 에디터 자동 생성 파일
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node.js 관련 (있을 경우)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 빌드/산출물 폴더
+dist/
+build/
+DMD/
+
+# 환경 변수 / 비밀 키
+.env
+firebase-debug.log
+serviceAccountKey.json
+
+# 기타 로그/캐시
+*.log
+.cache/
