@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>게시글</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',Roboto,Arial;margin:0;background:#f5f8fb;padding:20px}
+  header{background:#fff;border-bottom:1px solid #e6eef8;padding:12px;display:flex;justify-content:space-between;align-items:center}
+  .logo{font-weight:800;color:#0b69ff;font-size:20px;cursor:pointer}
+  .btn{background:#0b69ff;color:#fff;border:0;padding:6px 10px;border-radius:6px;cursor:pointer}
+  .btn.danger{background:#e63946}
+  .card{background:#fff;padding:16px;border-radius:8px;border:1px solid #e9f0f8;max-width:800px;margin:20px auto}
+  h2{margin-top:0}
+  .meta{font-size:13px;color:#666;margin-bottom:12px}
+  img.post-img{max-width:100%;border-radius:6px;margin-top:10px}
+  .nav-links{display:flex;justify-content:space-between;margin-top:20px;font-size:14px}
+  .nav-links span{cursor:pointer;color:#0b69ff}
+  .like{cursor:pointer;color:#e63946;margin-left:10px}
+  #comments{margin-top:20px}
+  .comment{border-top:1px solid #eee;padding:6px 0}
+  .comment-header{display:flex;justify-content:space-between;align-items:center}
+  .comment-header .nick{font-weight:bold}
+  .comment-header .time{font-size:12px;color:#888}
+  .comment-body{margin-top:4px}
+  .comment-actions button{margin-left:6px;font-size:12px;padding:2px 6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" onclick="location.href='index.html'">WAVE</div>
+  <button class="btn" onclick="location.href='index.html'">홈</button>
+</header>
+<div class="card" id="postCard" style="display:none">
+  <h2 id="title">제목</h2>
+  <div class="meta" id="meta"></div>
+  <div><span id="likeBtn" class="like">❤</span> <span id="likeCount">0</span></div>
+  <div id="content"></div>
+  <div id="images"></div>
+
+  <div id="postActions" style="margin-top:10px; display:none;">
+    <button class="btn" id="editPostBtn">수정</button>
+    <button class="btn danger" id="deletePostBtn">삭제</button>
+  </div>
+
+  <div class="nav-links">
+    <span id="prevLink"></span>
+    <span id="nextLink"></span>
+  </div>
+  <div id="comments">
+    <h3>댓글</h3>
+    <div id="commentList"></div>
+    <div id="commentForm" style="margin-top:10px;display:none">
+      <input id="commentInput" placeholder="댓글을 입력하세요" style="width:80%">
+      <button id="commentSubmit" class="btn">등록</button>
+    </div>
+  </div>
+</div>
+<div id="loginNotice" class="card" style="text-align:center;display:none">
+  <p>로그인 후 이용 가능합니다.</p>
+  <button class="btn" onclick="location.href='index.html'">홈으로</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, arrayRemove, collection, query, orderBy, getDocs, addDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+const firebaseConfig={
+  apiKey:"AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
+  authDomain:"wave-free-community.firebaseapp.com",
+  projectId:"wave-free-community",
+  storageBucket:"wave-free-community.firebasestorage.app",
+  messagingSenderId:"1072639024866",
+  appId:"1:1072639024866:web:934998f5e4a7eb02bd88bb"
+};
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
+const auth=getAuth(app);
+
+const params=new URLSearchParams(location.search);
+const postId=params.get('id');
+let currentData=null;
+let currentUser=null;
+let currentUserDoc=null;
+
+async function loadPost(){
+  const snap=await getDoc(doc(db,'posts',postId));
+  if(!snap.exists()){
+    document.getElementById('content').innerText="글을 찾을 수 없습니다.";
+    return;
+  }
+  const data=snap.data();
+  currentData=data;
+
+  document.getElementById('title').innerText=data.title||'(제목없음)';
+  document.getElementById('content').innerText=data.content||'';
+  const nick=data.nickname||'익명';
+  let time="";if(data.createdAt?.toDate){time=data.createdAt.toDate().toLocaleString();}
+  document.getElementById('meta').innerText=`작성자: ${nick} | ${time}`;
+
+  const c=document.getElementById('images');c.innerHTML='';
+  if(data.images){
+    data.images.forEach(url=>{
+      const img=document.createElement('img');
+      img.src=url;img.className='post-img';
+      c.appendChild(img);
+    });
+  }else if(data.imageUrl){
+    const img=document.createElement('img');
+    img.src=data.imageUrl;img.className='post-img';
+    c.appendChild(img);
+  }
+
+  updateLikeUI(Array.isArray(data.likes) ? data.likes : []);
+  document.getElementById('likeBtn').onclick=()=>toggleLike();
+
+  // ✅ 글 작성자 본인일 경우 수정/삭제 버튼 표시
+  if(currentUser && (
+    data.authorUid === currentUser.uid ||
+    data.uid === currentUser.uid ||
+    data.authorId === currentUser.uid
+  )){
+    document.getElementById('postActions').style.display="block";
+    document.getElementById('editPostBtn').onclick=()=>{location.href=`edit.html?id=${postId}`;};
+    document.getElementById('deletePostBtn').onclick=async()=>{
+      if(confirm("정말 삭제하시겠습니까?")){
+        await deleteDoc(doc(db,"posts",postId));
+        alert("삭제되었습니다.");
+        location.href="index.html";
+      }
+    };
+  }else{
+    document.getElementById('postActions').style.display="none";
+  }
+
+  await loadComments();
+}
+
+function updateLikeUI(likes){
+  const count = Array.isArray(likes) ? likes.length : 0;
+  document.getElementById('likeCount').innerText=count;
+  if(currentUser && Array.isArray(likes) && likes.includes(currentUser.uid)){
+    document.getElementById('likeBtn').style.fontWeight="bold";
+  }else{
+    document.getElementById('likeBtn').style.fontWeight="normal";
+  }
+}
+
+async function toggleLike(){
+  if(!currentUser){alert("로그인 후 이용 가능합니다.");return;}
+  const ref=doc(db,'posts',postId);
+  const snap=await getDoc(ref);
+  const data=snap.data()||{};
+  const likes = Array.isArray(data.likes) ? data.likes : [];
+  if(likes.includes(currentUser.uid)){
+    await updateDoc(ref,{likes:arrayRemove(currentUser.uid)});
+    const idx = likes.indexOf(currentUser.uid);
+    if(idx>-1) likes.splice(idx,1);
+  }else{
+    await updateDoc(ref,{likes:arrayUnion(currentUser.uid)});
+    likes.push(currentUser.uid);
+  }
+  updateLikeUI(likes);
+}
+
+async function loadComments(){
+  const commentsDiv = document.getElementById('commentList');
+  commentsDiv.innerHTML = "";
+  try {
+    const q = query(collection(db,'posts',postId,'comments'),orderBy('createdAt','asc'));
+    const snap = await getDocs(q);
+    if(snap.empty){
+      commentsDiv.innerHTML = "<p>댓글이 없습니다.</p>";
+      return;
+    }
+    snap.forEach(docu=>{
+      const c = docu.data();
+      const canEdit = currentUser && currentUser.uid === c.authorUid;
+      const timeStr = c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : "방금 전";
+      commentsDiv.innerHTML += `
+        <div class="comment">
+          <div class="comment-header">
+            <span class="nick">${c.authorNickname || '익명'}</span>
+            <span class="time">${timeStr}</span>
+          </div>
+          <div class="comment-body">${c.content}</div>
+          ${canEdit ? `
+            <div class="comment-actions">
+              <button class="btn" onclick="editComment('${docu.id}','${c.content}')">수정</button>
+              <button class="btn danger" onclick="deleteComment('${docu.id}')">삭제</button>
+            </div>` : ''}
+        </div>`;
+    });
+  } catch(err){
+    console.error("댓글 로드 실패", err);
+    commentsDiv.innerHTML = "<p>댓글 로드 실패</p>";
+  }
+}
+
+async function addComment(){
+  const input=document.getElementById('commentInput');const text=input.value.trim();if(!text) return;
+  if(!currentUser){alert("로그인 후 이용 가능합니다.");return;}
+  await addDoc(collection(db,'posts',postId,'comments'), {
+    content: text,
+    authorUid: currentUser.uid,
+    authorNickname: (currentUserDoc && currentUserDoc.nickname) || currentUser.email || "익명",
+    createdAt: serverTimestamp()
+  });
+  const newCount = (currentData?.commentCount || 0) + 1;
+  try{ await updateDoc(doc(db,'posts',postId), { commentCount: newCount }); }catch(e){ console.warn("commentCount update failed", e); }
+  if(currentData) currentData.commentCount = newCount;
+  input.value='';loadComments();
+}
+
+// ✅ 전역 등록
+window.editComment = function(id,oldText){
+  const newText=prompt("댓글 수정",oldText);
+  if(newText && newText.trim()){
+    updateDoc(doc(db,'posts',postId,'comments',id),{content:newText.trim()});
+    loadComments();
+  }
+}
+
+window.deleteComment = async function(id){
+  if(!confirm("삭제하시겠습니까?")) return;
+  await deleteDoc(doc(db,'posts',postId,'comments',id));
+  const newCount = Math.max((currentData?.commentCount || 1) - 1, 0);
+  try{ await updateDoc(doc(db,'posts',postId), { commentCount: newCount }); }catch(e){ console.warn("commentCount update failed", e); }
+  if(currentData) currentData.commentCount = newCount;
+  loadComments();
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('commentSubmit');
+  if(btn) btn.addEventListener('click', addComment);
+});
+
+onAuthStateChanged(auth, async user=>{
+  currentUser=user;
+  if(user){
+    try {
+      const uSnap = await getDoc(doc(db,'users',user.uid));
+      if(uSnap.exists()) currentUserDoc = uSnap.data();
+    } catch(e){ console.warn("user doc load fail", e); }
+
+    document.getElementById('postCard').style.display="block";
+    document.getElementById('loginNotice').style.display="none";
+    document.getElementById('commentForm').style.display="block";
+    loadPost();
+  }else{
+    document.getElementById('postCard').style.display="none";
+    document.getElementById('loginNotice').style.display="block";
+  }
+});
+</script>
+</body>
+</html>
