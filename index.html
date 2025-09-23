@@ -1,36 +1,384 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>WAVE Community</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>WAVE - 메인</title>
+<style>
+  :root{
+    --bg:#f5f8fb; --card:#fff; --text:#111; --muted:#666; --primary:#0b69ff;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',Roboto,Arial;margin:0;background:var(--bg);color:var(--text)}
+  body.dark{--bg:#0f1724;--card:#0b1320;--text:#e6eef8;--muted:#9aa6b2;--primary:#4c9dff}
+  header{background:var(--card);border-bottom:1px solid rgba(0,0,0,0.06);position:sticky;top:0;padding:12px;z-index:10}
+  .wrap{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .logo{font-weight:800;color:var(--primary);font-size:20px;cursor:pointer}
+  nav{display:flex;gap:12px;white-space:nowrap}
+  nav a{color:var(--text);text-decoration:none}
+  .right{display:flex;align-items:center;gap:10px}
+  .btn{background:var(--primary);color:#fff;border:0;padding:8px 10px;border-radius:6px;cursor:pointer}
+  .small{font-size:13px;color:var(--muted)}
+  main{max-width:1100px;margin:18px auto;display:flex;gap:20px;padding:0 12px}
+  .content{flex:1}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .card{background:var(--card);padding:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.04)}
+  .card h3{margin:0 0 8px 0}
+  .card ul{padding-left:16px;margin:0}
+  .card ul li{margin-bottom:6px}
+  .card ul li:hover{color:var(--primary);text-decoration:underline;cursor:pointer}
+  .profit-gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .thumb{background:var(--card);border-radius:6px;border:1px solid rgba(0,0,0,0.04);height:110px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:200}
+  .modal{background:var(--card);border-radius:8px;padding:18px;width:420px;max-width:96%}
+  input{width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:8px;box-sizing:border-box;background:transparent;color:var(--text)}
+  label.inline{display:flex;align-items:center;font-size:14px;gap:6px;cursor:pointer}
+  label.inline input{margin:0}
+  .top-controls{display:flex;gap:8px;align-items:center}
+  #searchInput{width:180px;max-width:40%}
+  .bell{position:relative;cursor:pointer}
+  .bell .badge{position:absolute;top:-6px;right:-6px;background:#e63946;color:white;border-radius:50%;padding:2px 6px;font-size:12px}
+  .dark-toggle{background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px;cursor:pointer}
+  .slides img{border-radius:12px;display:block}
+  @media(max-width:900px){ .cards{grid-template-columns:1fr} aside{display:none} .content{padding:0} }
+</style>
 </head>
 <body>
-  <h1>WAVE Community</h1>
-  <p>메인 페이지 (로그인 상태여야 볼 수 있습니다)</p>
+<header>
+  <div class="wrap">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="logo" id="logoBtn">WAVE</div>
+      <nav id="topNav">
+        <a href="board.html?board=free">자유게시판</a>
+        <a href="board.html?board=info">정보게시판</a>
+        <a href="board.html?board=stock">주식정보</a>
+        <a href="board.html?board=futures">해외선물정보</a>
+        <a href="board.html?board=profit">수익인증</a>
+      </nav>
+    </div>
+    <div class="right">
+      <div class="top-controls">
+        <input id="searchInput" type="text" placeholder="검색어 입력 (제목/내용)">
+        <button id="searchBtn" class="btn">검색</button>
+        <button id="writeBtn" class="btn">글쓰기</button>
+        <div class="bell" id="notifyBtn">🔔<span class="badge" id="notifBadge" style="display:none"></span></div>
+        <button id="darkToggle" class="dark-toggle">🌙</button>
+      </div>
+      <div id="authArea">
+        <button id="loginBtn" class="btn">로그인</button>
+        <button id="signupBtn" class="btn">회원가입</button>
+      </div>
+    </div>
+  </div>
+</header>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+<main>
+  <div class="content">
+    <div class="card" style="margin-bottom:20px;text-align:center">
+      <div class="notice-slider" style="position:relative;max-width:100%;overflow:hidden">
+        <button class="prev" style="position:absolute;top:50%;left:10px;transform:translateY(-50%);
+                background:rgba(0,0,0,0.4);color:#fff;border:none;padding:8px;cursor:pointer;
+                border-radius:50%;z-index:10">◀</button>
+        <button class="next" style="position:absolute;top:50%;right:10px;transform:translateY(-50%);
+                background:rgba(0,0,0,0.4);color:#fff;border:none;padding:8px;cursor:pointer;
+                border-radius:50%;z-index:10">▶</button>
+        <div class="slides" id="bannerSlides" style="display:flex;transition:transform 0.5s ease;width:100%"></div>
+      </div>
+      <div id="bannerAdminArea" style="margin-top:10px;display:none">
+        <input type="file" id="bannerFile" accept="image/*">
+        <button id="bannerUploadBtn" class="btn">배너 업로드</button>
+      </div>
+    </div>
 
-    // Firebase 설정
-    const firebaseConfig = {
-      apiKey: "AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
-      authDomain: "wave-free-community.firebaseapp.com",
-      projectId: "wave-free-community",
-      storageBucket: "wave-free-community.appspot.com",
-      messagingSenderId: "1072639024866",
-      appId: "1:1072639024866:web:934998f5e4a7eb02bd88bb"
-    };
+    <div class="cards">
+      <div class="card"><h3>자유게시판</h3><ul id="freeList"><li class="small">로딩중...</li></ul></div>
+      <div class="card"><h3>정보게시판</h3><ul id="infoList"><li class="small">로딩중...</li></ul></div>
+      <div class="card"><h3>주식정보</h3><ul id="stockList"><li class="small">로딩중...</li></ul></div>
+      <div class="card"><h3>해외선물정보</h3><ul id="futuresList"><li class="small">로딩중...</li></ul></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>수익인증</h3>
+      <div class="profit-gallery" id="profitGallery"></div>
+    </div>
+  </div>
+  <aside style="width:300px;padding:12px">
+    <div class="card"><strong>인기글</strong><ul id="popularList"><li class="small">로딩중...</li></ul></div>
+    <div class="card" style="margin-top:20px;text-align:center">
+      <a href="https://t.me/YourTelegramID" target="_blank" style="display:inline-block;background:#0088cc;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:16px">📩 텔레그램 문의하기</a>
+    </div>
+    <div class="card" id="profileBox" style="margin-top:20px;text-align:center">
+      <div class="small">로그인 후 이용 가능합니다.</div>
+    </div>
+  </aside>
+</main>
 
-    // Firebase 초기화
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
+<!-- 로그인/회원가입 모달 -->
+<div id="authModal" class="modal-bg">
+  <div class="modal">
+    <div id="loginPanel">
+      <h3>로그인</h3>
+      <input id="loginEmail" type="email" placeholder="이메일">
+      <input id="loginPw" type="password" placeholder="비밀번호">
+      <div style="margin:6px 0 10px 0">
+        <label for="rememberEmail" class="inline small">
+          <input type="checkbox" id="rememberEmail"> 저장
+        </label>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button id="doLogin" class="btn">로그인</button>
+        <button id="openSignup" class="btn">회원가입</button>
+        <button id="closeAuth" class="btn">취소</button>
+      </div>
+    </div>
+    <div id="signupPanel" style="display:none">
+      <h3>회원가입</h3>
+      <form id="signupForm">
+        <input id="realName" type="text" placeholder="이름">
+        <input id="phoneNumber" type="tel" placeholder="전화번호" required>
+        <input id="nickname" type="text" placeholder="닉네임">
+        <input id="signupEmail" type="email" placeholder="이메일">
+        <input id="signupPw" type="password" placeholder="비밀번호">
+        <label for="profileImage" class="small">프로필 사진 선택</label>
+        <input id="profileImage" type="file" accept="image/*">
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn">가입</button>
+          <button type="button" id="signupCancel" class="btn" style="background:#ccc;color:#222">취소</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
-    // 로그인 안 된 경우 → 로그인 페이지로 이동
-    if (!auth.currentUser) {
-      location.href = "login.html";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, setDoc, getDoc, addDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
+  authDomain: "wave-free-community.firebaseapp.com",
+  projectId: "wave-free-community",
+  storageBucket: "wave-free-community.firebasestorage.app",
+  messagingSenderId: "1072639024866",
+  appId: "1:1072639024866:web:934998f5e4a7eb02bd88bb"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const ADMIN_EMAIL = "wave@wave.com";
+const CLOUDINARY_UPLOAD = "https://api.cloudinary.com/v1_1/dlzhh9997/upload";
+const UPLOAD_PRESET = "wavecm";
+
+function translateError(code){
+  switch(code){
+    case "auth/email-already-in-use": return "이미 사용중인 이메일입니다.";
+    case "auth/invalid-email": return "이메일 형식이 올바르지 않습니다.";
+    case "auth/weak-password": return "비밀번호는 6자 이상이어야 합니다.";
+    case "auth/missing-password": return "비밀번호를 입력하세요.";
+    default: return "회원가입 실패: 다시 시도해주세요.";
+  }
+}
+
+// safeQuery: orderBy createdAt may fail if field missing; fallback to no orderBy
+async function safeQuery(boardId, size=6){
+  try{
+    let q;
+    try{
+      q = query(collection(db,'posts'), where('board','==',boardId), orderBy('createdAt','desc'), limit(size));
+      await getDocs(q);
+    }catch(err){
+      q = query(collection(db,'posts'), where('board','==',boardId), limit(size));
     }
-  </script>
+    return await getDocs(q);
+  }catch(e){
+    console.error("safeQuery error", e);
+    return null;
+  }
+}
+
+async function loadBanners(){
+  try{
+    const q = query(collection(db,"banners"), orderBy("createdAt","desc"));
+    const snap = await getDocs(q);
+    const container = document.getElementById("bannerSlides");
+    container.innerHTML='';
+    if(!snap || snap.empty){ container.innerHTML='<div class="small">등록된 배너가 없습니다.</div>'; return; }
+    snap.forEach(docSnap=>{
+      const b = docSnap.data();
+      const wrapper = document.createElement("div");
+      wrapper.style.minWidth="100%"; wrapper.style.position="relative";
+      const img = document.createElement("img"); img.src = b.imageUrl; img.style.width='100%'; img.style.height='220px'; img.style.objectFit='cover';
+      wrapper.appendChild(img);
+      if(auth.currentUser && auth.currentUser.email===ADMIN_EMAIL){
+        const delBtn = document.createElement("button"); delBtn.textContent="삭제"; delBtn.style.position="absolute"; delBtn.style.right="12px"; delBtn.style.top="12px"; delBtn.onclick=async ()=>{ if(confirm("삭제?")){ await deleteDoc(doc(db,"banners",docSnap.id)); loadBanners(); } };
+        wrapper.appendChild(delBtn);
+      }
+      container.appendChild(wrapper);
+    });
+  }catch(e){ console.error(e); document.getElementById("bannerSlides").innerHTML='<div class="small">배너 로드 실패</div>'; }
+}
+function initBannerSlider(){
+  const slider=document.getElementById('bannerSlides'); if(!slider) return;
+  let index=0;
+  function show(i){ const count=slider.children.length; if(count===0) return; index=(i+count)%count; slider.style.transform=`translateX(${-index*100}%)`; }
+  document.querySelector('.prev').addEventListener('click',()=>show(index-1));
+  document.querySelector('.next').addEventListener('click',()=>show(index+1));
+  setInterval(()=>show(index+1),5000);
+}
+
+async function loadBoardPreview(boardId, elementId){
+  const ul=document.getElementById(elementId);
+  ul.innerHTML='<li class="small">로딩중...</li>';
+  const snap = await safeQuery(boardId);
+  if(!snap){ ul.innerHTML='<li class="small">로드 실패</li>'; return; }
+  ul.innerHTML='';
+  if(snap.empty){ ul.innerHTML='<li class="small">최근 글 없음</li>'; return; }
+  snap.forEach(docSnap=>{
+    const p = docSnap.data();
+    const li = document.createElement('li');
+    li.innerHTML = `<strong>${p.title||'(제목없음)'}</strong><div class="small">${p.authorNickname||p.nickname||'익명'} · ${p.createdAt?.toDate? p.createdAt.toDate().toLocaleString() : ''}</div>`;
+    li.addEventListener('click',()=>location.href=`post.html?id=${docSnap.id}`);
+    ul.appendChild(li);
+  });
+}
+
+async function loadProfitGallery(){
+  const c=document.getElementById('profitGallery'); c.innerHTML='로딩중...';
+  const snap = await safeQuery('profit',9);
+  if(!snap){ c.innerHTML='로드 실패'; return; }
+  c.innerHTML='';
+  snap.forEach(docSnap=>{
+    const p = docSnap.data();
+    let url = (p.images && p.images.length>0) ? p.images[0] : p.imageUrl;
+    if(url){
+      const div=document.createElement('div'); div.className='thumb';
+      const img=document.createElement('img'); img.src=url;
+      div.appendChild(img); div.addEventListener('click',()=>location.href=`post.html?id=${docSnap.id}`);
+      c.appendChild(div);
+    }
+  });
+}
+
+async function loadPopular(){
+  const ul=document.getElementById('popularList'); ul.innerHTML='로딩중...';
+  try{
+    const snap = await getDocs(collection(db,'posts'));
+    const arr=[]; snap.forEach(s=>{ const p=s.data(); arr.push({id:s.id,title:p.title||'(제목없음)', likes:(p.likes||[]).length, comments:p.commentCount||0}); });
+    arr.sort((a,b)=>b.likes-a.likes); ul.innerHTML='';
+    arr.slice(0,6).forEach(p=>{ const li=document.createElement('li'); li.innerHTML=`${p.title} <span style="color:red;">❤</span>${p.likes} 💬${p.comments}`; li.addEventListener('click',()=>location.href=`post.html?id=${p.id}`); ul.appendChild(li); });
+    if(arr.length===0) ul.innerHTML='<li class="small">인기글 없음</li>';
+  }catch(e){ ul.innerHTML='<li class="small">로드 실패</li>'; }
+}
+
+// Cloudinary upload helper
+async function uploadToCloudinary(file){
+  const form = new FormData(); form.append('file', file); form.append('upload_preset', UPLOAD_PRESET);
+  const res = await fetch(CLOUDINARY_UPLOAD,{method:'POST',body:form}); const j = await res.json(); return j.secure_url || j.url || '';
+}
+
+// Modal & auth UI
+function openAuth(mode='login'){ document.getElementById('authModal').style.display='flex'; document.getElementById('loginPanel').style.display = mode==='login'?'block':'none'; document.getElementById('signupPanel').style.display = mode==='signup'?'block':'none'; if(mode==='login'){ const saved = localStorage.getItem('savedEmail'); if(saved){ document.getElementById('loginEmail').value = saved; document.getElementById('rememberEmail').checked = true; } } }
+function closeAuth(){ document.getElementById('authModal').style.display='none'; }
+
+document.addEventListener('click', e=>{
+  if(e.target.id==='loginBtn') openAuth('login');
+  if(e.target.id==='signupBtn') openAuth('signup');
+  if(e.target.id==='openSignup') openAuth('signup');
+  if(e.target.id==='closeAuth') closeAuth();
+});
+
+document.getElementById('signupCancel').addEventListener('click', ()=>{ closeAuth(); });
+
+document.getElementById('doLogin').addEventListener('click', async ()=>{
+  const email=document.getElementById('loginEmail').value, pw=document.getElementById('loginPw').value;
+  try{ await signInWithEmailAndPassword(auth,email,pw);
+    closeAuth();
+    // 로그인 성공 후 새로고침하여 onAuthStateChanged 트리거
+    location.href = "index.html"; }catch(e){ alert(e.message || '로그인 실패'); }
+});
+
+document.getElementById('signupForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email=document.getElementById('signupEmail').value, pw=document.getElementById('signupPw').value;
+  try{
+    const cred = await createUserWithEmailAndPassword(auth,email,pw);
+    await setDoc(doc(db,'users',cred.user.uid), { email, role:'user', createdAt: serverTimestamp(), nickname: document.getElementById('nickname').value || '',
+      realName: document.getElementById('realName').value || '',
+      phone: document.getElementById('phoneNumber').value || '' });
+    closeAuth(); alert('회원가입 완료');
+  }catch(e){ alert(translateError(e.code)); }
+});
+
+document.getElementById('searchBtn').addEventListener('click', async ()=>{
+  const q = document.getElementById('searchInput').value.trim(); if(!q) return alert('검색어를 입력하세요');
+  try{
+    const all = await getDocs(collection(db,'posts'));
+    const res = [];
+    all.forEach(d=>{ const p=d.data(); if(((p.title||'')+' '+(p.content||'')).toLowerCase().includes(q.toLowerCase())) res.push({id:d.id,data:p}); });
+    if(res.length===0) return alert('검색 결과 없음');
+    const win = window.open(); win.document.write('<h3>검색 결과</h3><ul>'+res.map(r=>`<li><a href="post.html?id=${r.id}">${r.data.title||'(제목없음)'}</a></li>`).join('')+'</ul>');
+  }catch(e){ alert('검색 실패'); }
+});
+
+document.getElementById('writeBtn').addEventListener('click', ()=>{ if(!auth.currentUser){ alert('로그인 후 이용 가능합니다.'); openAuth('login'); return; } location.href='write.html'; });
+
+onAuthStateChanged(auth, async user=>{
+  const box=document.getElementById('profileBox'), authArea=document.getElementById('authArea');
+  if(user){
+    // 로그인된 사용자일 때만 Firestore 데이터 로드 (보안 규칙에 맞게)
+    loadBanners().then(initBannerSlider);
+    loadBoardPreview('free','freeList');
+    loadBoardPreview('info','infoList');
+    loadBoardPreview('stock','stockList');
+    loadBoardPreview('futures','futuresList');
+    loadProfitGallery();
+    loadPopular();
+
+
+    authArea.innerHTML = `<button id="logoutBtn" class="btn">로그아웃</button>`;
+    document.getElementById('logoutBtn').addEventListener('click', async ()=>{ await signOut(auth); });
+    if(user.email===ADMIN_EMAIL){
+      document.getElementById('bannerAdminArea').style.display='block';
+      document.getElementById('bannerUploadBtn').onclick = async ()=>{
+        const file = document.getElementById('bannerFile').files[0]; if(!file) return alert('이미지를 선택해 주세요.');
+        try{ const url = await uploadToCloudinary(file); await addDoc(collection(db,'banners'),{imageUrl:url, createdAt: serverTimestamp()}); await loadBanners(); initBannerSlider(); alert('업로드 완료'); }catch(e){ alert('업로드 실패'); }
+      };
+    }
+    try{
+      const snap = await getDoc(doc(db,'users',user.uid));
+      if(snap.exists()){ const u=snap.data(); box.innerHTML=`<img src="${u.profileUrl||''}" style="width:60px;height:60px;border-radius:50%"><div>${u.nickname||user.email}</div>`; }
+      else box.innerHTML=`<div class="small">${user.email}</div>`;
+      // notifications
+      const nQ = query(collection(db,'notifications'), where('toUid','==',user.uid), where('read','==',false));
+      const nSnap = await getDocs(nQ); const badge = document.getElementById('notifBadge');
+      if(nSnap.size>0){ badge.style.display='inline-block'; badge.innerText = nSnap.size; } else badge.style.display='none';
+      document.getElementById('notifyBtn').onclick = async ()=>{
+        const win=window.open(); win.document.write('<h3>알림</h3><ul>');
+        const q2 = query(collection(db,'notifications'), where('toUid','==',user.uid), orderBy('createdAt','desc'), limit(50));
+        const s2 = await getDocs(q2);
+        const ids=[];
+        s2.forEach(docu=>{ const d=docu.data(); win.document.write(`<li>${new Date(d.createdAt?.toDate ? d.createdAt.toDate() : d.createdAt).toLocaleString()} - ${d.message}</li>`); ids.push(docu.id); });
+        win.document.write('</ul>');
+        // mark read by deleting (simple)
+        ids.forEach(id=>{ try{ deleteDoc(doc(db,'notifications',id)); }catch(e){} });
+        badge.style.display='none';
+      };
+    }catch(e){ console.error(e); }
+  }else{
+    // 비회원은 로그인 페이지로 이동
+    location.href = 'login.html';
+  }
+});
+
+window.addEventListener('DOMContentLoaded', ()=>{
+// theme
+  const theme = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+  if(theme==='dark') document.body.classList.add('dark');
+  document.getElementById('darkToggle').innerText = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  document.getElementById('darkToggle').addEventListener('click', ()=>{ document.body.classList.toggle('dark'); const cur = document.body.classList.contains('dark') ? 'dark' : 'light'; localStorage.setItem('theme', cur); document.getElementById('darkToggle').innerText = cur==='dark' ? '☀️' : '🌙'; });
+});
+
+</script>
 </body>
 </html>
