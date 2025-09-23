@@ -295,7 +295,7 @@ document.getElementById('doLogin').addEventListener('click', async ()=>{
   try{ await signInWithEmailAndPassword(auth,email,pw);
     closeAuth();
     // 로그인 성공 후 새로고침하여 onAuthStateChanged 트리거
-    location.href = "index.html"; }catch(e){ alert(e.message || '로그인 실패'); }
+    location.reload(); }catch(e){ alert(e.message || '로그인 실패'); }
 });
 
 document.getElementById('signupForm').addEventListener('submit', async (e)=>{
