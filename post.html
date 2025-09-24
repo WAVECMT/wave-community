@@ -70,7 +70,7 @@ const firebaseConfig={
   apiKey:"AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
   authDomain:"wave-free-community.firebaseapp.com",
   projectId:"wave-free-community",
-  storageBucket:"wave-free-community.firebasestorage.app",
+  storageBucket:"wave-free-community.appspot.com",
   messagingSenderId:"1072639024866",
   appId:"1:1072639024866:web:934998f5e4a7eb02bd88bb"
 };
@@ -78,17 +78,18 @@ const app=initializeApp(firebaseConfig);
 const db=getFirestore(app);
 const auth=getAuth(app);
 
-
-function linkify(text) {
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
-  return text.replace(urlPattern, '<a href="$1" target="_blank">$1</a>');
-}
 const params=new URLSearchParams(location.search);
 const postId=params.get('id');
 let currentData=null;
 let currentUser=null;
 let currentUserDoc=null;
 
+
+function formatText(text) {
+  if (!text) return "";
+  const escaped = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return escaped.replace(/\n/g, "<br>");
+}
 async function loadPost(){
   const snap=await getDoc(doc(db,'posts',postId));
   if(!snap.exists()){
@@ -99,7 +100,7 @@ async function loadPost(){
   currentData=data;
 
   document.getElementById('title').innerText=data.title||'(제목없음)';
-  document.getElementById('content').innerHTML = linkify(data.content || '');
+  document.getElementById('content').innerText=data.content||'';
   const nick=data.nickname||'익명';
   let time="";if(data.createdAt?.toDate){time=data.createdAt.toDate().toLocaleString();}
   document.getElementById('meta').innerText=`작성자: ${nick} | ${time}`;
