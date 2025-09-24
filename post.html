@@ -78,6 +78,11 @@ const app=initializeApp(firebaseConfig);
 const db=getFirestore(app);
 const auth=getAuth(app);
 
+
+function linkify(text) {
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  return text.replace(urlPattern, '<a href="$1" target="_blank">$1</a>');
+}
 const params=new URLSearchParams(location.search);
 const postId=params.get('id');
 let currentData=null;
@@ -94,7 +99,7 @@ async function loadPost(){
   currentData=data;
 
   document.getElementById('title').innerText=data.title||'(제목없음)';
-  document.getElementById('content').innerText=data.content||'';
+  document.getElementById('content').innerHTML = linkify(data.content || '');
   const nick=data.nickname||'익명';
   let time="";if(data.createdAt?.toDate){time=data.createdAt.toDate().toLocaleString();}
   document.getElementById('meta').innerText=`작성자: ${nick} | ${time}`;
