@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>글쓰기 - WAVE</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',Roboto,Arial;margin:0;background:#f5f8fb;color:#111}
+  .wrap{max-width:800px;margin:20px auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
+  input,select,textarea{width:100%;padding:10px;margin:6px 0;border:1px solid #ccc;border-radius:6px;box-sizing:border-box}
+  textarea{height:200px;resize:vertical}
+  button{background:#0b69ff;color:#fff;border:0;padding:10px 16px;border-radius:6px;cursor:pointer;margin-top:10px}
+  .row{margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>글쓰기</h2>
+  <form id="form">
+    <div class="row">
+      <label>게시판</label>
+      <select id="boardSelect">
+        <option value="free">자유게시판</option>
+        <option value="info">정보게시판</option>
+        <option value="stock">주식정보</option>
+        <option value="futures">해외선물정보</option>
+        <option value="profit">수익인증</option>
+      </select>
+    </div>
+    <div class="row"><label>제목</label><input id="title" required></div>
+    <div class="row"><label>내용</label><textarea id="content" required></textarea></div>
+    <div class="row"><label>작성자</label><input id="authorDisplay" disabled></div>
+    <div class="row" id="pinnedBox" style="display:none">
+      <label><input type="checkbox" id="pinned"> 상단 고정</label>
+    </div>
+    <div class="row" id="adminTimeRow" style="display:none">
+      <label>임의 작성시간 (관리자 전용)</label>
+      <input type="datetime-local" id="customTime">
+    </div>
+    <div class="row"><label>이미지</label><input type="file" id="imageInput" multiple accept="image/*"></div>
+    <button type="submit">등록</button>
+  </form>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
+  authDomain: "wave-free-community.firebaseapp.com",
+  projectId: "wave-free-community",
+  storageBucket: "wave-free-community.firebasestorage.app",
+  messagingSenderId: "1072639024866",
+  appId: "1:1072639024866:web:934998f5e4a7eb02bd88bb"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const CLOUDINARY_UPLOAD = "https://api.cloudinary.com/v1_1/dlzhh9997/upload";
+const UPLOAD_PRESET = "wavecm";
+let currentUser=null, currentUserDoc=null;
+
+onAuthStateChanged(auth, async (u)=>{
+  if(!u){ alert('로그인 후 이용 가능합니다.'); location.href='index.html'; return; }
+  currentUser = u;
+  try{ 
+    const snap = await getDoc(doc(db,'users',u.uid)); 
+    currentUserDoc = snap.exists()? snap.data(): null; 
+  }catch(e){ currentUserDoc = null; }
+
+  document.getElementById('authorDisplay').value = currentUserDoc?.nickname || currentUser.displayName || currentUser.email;
+
+  if(currentUserDoc?.role === 'admin'){ 
+    document.getElementById('adminTimeRow').style.display='block'; 
+    document.getElementById('pinnedBox').style.display='block'; 
+  } else {
+    // 일반 유저는 주식/해외선물 게시판 선택 불가
+    const select = document.getElementById('boardSelect');
+    [...select.options].forEach(opt=>{
+      if(opt.value==="stock" || opt.value==="futures"){
+        opt.disabled = true; // 선택 불가 처리
+      }
+    });
+  }
+});
+
+async function uploadToCloudinary(file){
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', UPLOAD_PRESET);
+  const res = await fetch(CLOUDINARY_UPLOAD,{method:'POST',body:form});
+  const j = await res.json();
+  return j.secure_url || j.url || '';
+}
+
+document.getElementById('form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!currentUser) return alert('로그인 필요');
+  const board = document.getElementById('boardSelect').value;
+  // 일반 유저 차단 로직
+  if(currentUserDoc?.role !== 'admin' && (board==="stock" || board==="futures")){
+    return alert("해당 게시판은 관리자만 작성할 수 있습니다.");
+  }
+
+  const title=document.getElementById('title').value;
+  const content=document.getElementById('content').value;
+  let images=[];
+  const files=document.getElementById('imageInput').files;
+  for(const f of files){ const url = await uploadToCloudinary(f); if(url) images.push(url); }
+
+  const data={
+    board,title,content,images,
+    uid: currentUser.uid,
+    authorUid:currentUser.uid,
+    authorNickname:currentUserDoc?.nickname || currentUser.email,
+    createdAt: serverTimestamp(),
+    pinned: document.getElementById('pinned').checked || false
+  };
+  if(currentUserDoc?.role==='admin' && document.getElementById('customTime').value){
+    data.createdAt = new Date(document.getElementById('customTime').value);
+  }
+
+  await addDoc(collection(db,'posts'), data);
+  alert('등록 완료'); location.href=`board.html?board=${board}`;
+});
+</script>
+</body>
+</html>
