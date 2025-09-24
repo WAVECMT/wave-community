@@ -84,12 +84,16 @@ let currentData=null;
 let currentUser=null;
 let currentUserDoc=null;
 
-
-function formatText(text) {
+// ✅ 링크 자동 변환 함수
+function linkify(text) {
   if (!text) return "";
-  const escaped = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return escaped.replace(/\n/g, "<br>");
+  const escaped = text.replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const withLinks = escaped.replace(/(https?:\/\/[^\s]+)/g, (match) => {
+    return `<a href="${match}" target="_blank">${match}</a>`;
+  });
+  return withLinks.replace(/\n/g,"<br>");
 }
+
 async function loadPost(){
   const snap=await getDoc(doc(db,'posts',postId));
   if(!snap.exists()){
@@ -100,7 +104,7 @@ async function loadPost(){
   currentData=data;
 
   document.getElementById('title').innerText=data.title||'(제목없음)';
-  document.getElementById('content').innerText=data.content||'';
+  document.getElementById('content').innerHTML=linkify(data.content||'');
   const nick=data.nickname||'익명';
   let time="";if(data.createdAt?.toDate){time=data.createdAt.toDate().toLocaleString();}
   document.getElementById('meta').innerText=`작성자: ${nick} | ${time}`;
@@ -121,7 +125,6 @@ async function loadPost(){
   updateLikeUI(Array.isArray(data.likes) ? data.likes : []);
   document.getElementById('likeBtn').onclick=()=>toggleLike();
 
-  // ✅ 글 작성자 본인일 경우 수정/삭제 버튼 표시
   if(currentUser && (
     data.authorUid === currentUser.uid ||
     data.uid === currentUser.uid ||
@@ -190,7 +193,7 @@ async function loadComments(){
             <span class="nick">${c.authorNickname || '익명'}</span>
             <span class="time">${timeStr}</span>
           </div>
-          <div class="comment-body">${c.content}</div>
+          <div class="comment-body">${linkify(c.content)}</div>
           ${canEdit ? `
             <div class="comment-actions">
               <button class="btn" onclick="editComment('${docu.id}','${c.content}')">수정</button>
@@ -219,7 +222,6 @@ async function addComment(){
   input.value='';loadComments();
 }
 
-// ✅ 전역 등록
 window.editComment = function(id,oldText){
   const newText=prompt("댓글 수정",oldText);
   if(newText && newText.trim()){
