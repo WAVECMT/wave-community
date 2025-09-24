@@ -35,7 +35,8 @@
     </div>
     <div class="row" id="adminTimeRow" style="display:none">
       <label>임의 작성시간 (관리자 전용)</label>
-      <input type="datetime-local" id="customTime">
+      <!-- ✅ 초 단위 입력 허용 -->
+      <input type="datetime-local" id="customTime" step="1">
     </div>
     <div class="row"><label>이미지</label><input type="file" id="imageInput" multiple accept="image/*"></div>
     <button type="submit">등록</button>
@@ -77,11 +78,10 @@ onAuthStateChanged(auth, async (u)=>{
     document.getElementById('adminTimeRow').style.display='block'; 
     document.getElementById('pinnedBox').style.display='block'; 
   } else {
-    // 일반 유저는 주식/해외선물 게시판 선택 불가
     const select = document.getElementById('boardSelect');
     [...select.options].forEach(opt=>{
       if(opt.value==="stock" || opt.value==="futures"){
-        opt.disabled = true; // 선택 불가 처리
+        opt.disabled = true;
       }
     });
   }
@@ -100,7 +100,6 @@ document.getElementById('form').addEventListener('submit', async (e)=>{
   e.preventDefault();
   if(!currentUser) return alert('로그인 필요');
   const board = document.getElementById('boardSelect').value;
-  // 일반 유저 차단 로직
   if(currentUserDoc?.role !== 'admin' && (board==="stock" || board==="futures")){
     return alert("해당 게시판은 관리자만 작성할 수 있습니다.");
   }
