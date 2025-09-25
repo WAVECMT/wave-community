@@ -24,6 +24,7 @@
   .comment-header .time{font-size:12px;color:#888}
   .comment-body{margin-top:4px}
   .comment-actions button{margin-left:6px;font-size:12px;padding:2px 6px}
+  #content img{max-width:100%;border-radius:6px;margin-top:10px}
 </style>
 </head>
 <body>
@@ -36,7 +37,6 @@
   <div class="meta" id="meta"></div>
   <div><span id="likeBtn" class="like">❤</span> <span id="likeCount">0</span></div>
   <div id="content"></div>
-  <div id="images"></div>
 
   <div id="postActions" style="margin-top:10px; display:none;">
     <button class="btn" id="editPostBtn">수정</button>
@@ -84,16 +84,6 @@ let currentData=null;
 let currentUser=null;
 let currentUserDoc=null;
 
-// ✅ 링크 자동 변환 함수
-function linkify(text) {
-  if (!text) return "";
-  const escaped = text.replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const withLinks = escaped.replace(/(https?:\/\/[^\s]+)/g, (match) => {
-    return `<a href="${match}" target="_blank">${match}</a>`;
-  });
-  return withLinks.replace(/\n/g,"<br>");
-}
-
 async function loadPost(){
   const snap=await getDoc(doc(db,'posts',postId));
   if(!snap.exists()){
@@ -104,23 +94,12 @@ async function loadPost(){
   currentData=data;
 
   document.getElementById('title').innerText=data.title||'(제목없음)';
-  document.getElementById('content').innerHTML=linkify(data.content||'');
-  const nick=data.nickname||'익명';
+  // ✅ Quill HTML 그대로 반영
+  document.getElementById('content').innerHTML=data.content||'';
+
+  const nick=data.authorNickname || data.nickname || '익명';
   let time="";if(data.createdAt?.toDate){time=data.createdAt.toDate().toLocaleString();}
   document.getElementById('meta').innerText=`작성자: ${nick} | ${time}`;
-
-  const c=document.getElementById('images');c.innerHTML='';
-  if(data.images){
-    data.images.forEach(url=>{
-      const img=document.createElement('img');
-      img.src=url;img.className='post-img';
-      c.appendChild(img);
-    });
-  }else if(data.imageUrl){
-    const img=document.createElement('img');
-    img.src=data.imageUrl;img.className='post-img';
-    c.appendChild(img);
-  }
 
   updateLikeUI(Array.isArray(data.likes) ? data.likes : []);
   document.getElementById('likeBtn').onclick=()=>toggleLike();
@@ -193,7 +172,7 @@ async function loadComments(){
             <span class="nick">${c.authorNickname || '익명'}</span>
             <span class="time">${timeStr}</span>
           </div>
-          <div class="comment-body">${linkify(c.content)}</div>
+          <div class="comment-body">${c.content}</div>
           ${canEdit ? `
             <div class="comment-actions">
               <button class="btn" onclick="editComment('${docu.id}','${c.content}')">수정</button>
