@@ -31,6 +31,13 @@
     <div class="row"><label>제목</label><input id="title" required></div>
     <div class="row"><label>내용</label><div id="editor"></div></div>
     <div class="row"><label>작성자</label><input id="authorDisplay" disabled></div>
+
+    <!-- 관리자 전용 닉네임 변경 -->
+    <div class="row" id="adminNicknameRow" style="display:none">
+      <label>작성자 닉네임 (관리자 전용)</label>
+      <input type="text" id="customNickname">
+    </div>
+
     <div class="row" id="pinnedBox" style="display:none">
       <label><input type="checkbox" id="pinned"> 상단 고정</label>
     </div>
@@ -65,6 +72,12 @@ const CLOUDINARY_UPLOAD = "https://api.cloudinary.com/v1_1/dlzhh9997/upload";
 const UPLOAD_PRESET = "wavecm";
 let currentUser=null, currentUserDoc=null;
 
+// URL 파라미터 읽기 함수
+function getQueryParam(name) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+
 onAuthStateChanged(auth, async (u)=>{
   if(!u){ alert('로그인 후 이용 가능합니다.'); location.href='index.html'; return; }
   currentUser = u;
@@ -75,16 +88,24 @@ onAuthStateChanged(auth, async (u)=>{
 
   document.getElementById('authorDisplay').value = currentUserDoc?.nickname || currentUser.displayName || currentUser.email;
 
-  if(currentUserDoc?.role === 'admin'){ 
-    document.getElementById('adminTimeRow').style.display='block'; 
-    document.getElementById('pinnedBox').style.display='block'; 
-  } else {
-    const select = document.getElementById('boardSelect');
+  const select = document.getElementById('boardSelect');
+
+  // 일반회원 접근 제한
+  if(currentUserDoc?.role !== 'admin'){ 
     [...select.options].forEach(opt=>{
-      if(opt.value==="stock" || opt.value==="futures"){
-        opt.disabled = true;
-      }
+      if(opt.value==="stock" || opt.value==="futures") opt.disabled = true;
     });
+  } else { // 관리자
+    document.getElementById('adminTimeRow').style.display='block';
+    document.getElementById('pinnedBox').style.display='block';
+    document.getElementById('adminNicknameRow').style.display='block';
+  }
+
+  // URL 파라미터에 따라 게시판 선택
+  const boardParam = getQueryParam('board');
+  if(boardParam){
+    const option = [...select.options].find(opt => opt.value === boardParam);
+    if(option) select.value = boardParam;
   }
 });
 
@@ -147,18 +168,22 @@ document.getElementById('form').addEventListener('submit', async (e)=>{
   e.preventDefault();
   if(!currentUser) return alert('로그인 필요');
   const board = document.getElementById('boardSelect').value;
+
+  // 일반회원 제한 체크
   if(currentUserDoc?.role !== 'admin' && (board==="stock" || board==="futures")){
     return alert("해당 게시판은 관리자만 작성할 수 있습니다.");
   }
 
   const title=document.getElementById('title').value;
-  const content=quill.root.innerHTML; // HTML 저장
+  const content=quill.root.innerHTML;
 
   const data={
     board,title,content,
     uid: currentUser.uid,
-    authorUid:currentUser.uid,
-    authorNickname:currentUserDoc?.nickname || currentUser.email,
+    authorUid: currentUser.uid,
+    authorNickname: currentUserDoc?.role==='admin' && document.getElementById('customNickname').value
+                     ? document.getElementById('customNickname').value
+                     : currentUserDoc?.nickname || currentUser.email,
     createdAt: serverTimestamp(),
     pinned: document.getElementById('pinned').checked || false
   };
