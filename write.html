@@ -1,158 +1,173 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>글수정 - WAVE</title>
-<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>글쓰기 - WAVE</title>
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <style>
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',Roboto,Arial;background:#f7fafc;margin:0}
-header{background:#fff;padding:12px;border-bottom:1px solid #ddd}
-.container{max-width:800px;margin:20px auto;padding:12px}
-#editor{height:300px;background:#fff;border:1px solid #ddd;border-radius:6px;margin-bottom:8px}
-input,button{padding:8px;border-radius:6px;border:1px solid #ddd;margin-bottom:8px}
-button{background:#0b69ff;color:#fff;border:0;cursor:pointer}
-#existingImages img{width:100px;height:70px;object-fit:cover;margin-right:8px}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',Roboto,Arial;margin:0;background:#f5f8fb;color:#111}
+  .wrap{max-width:800px;margin:20px auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
+  input,select{width:100%;padding:10px;margin:6px 0;border:1px solid #ccc;border-radius:6px;box-sizing:border-box}
+  button{background:#0b69ff;color:#fff;border:0;padding:10px 16px;border-radius:6px;cursor:pointer;margin-top:10px}
+  .row{margin-bottom:12px}
+  #editor{height:300px;border:1px solid #ccc;border-radius:6px;background:#fff}
 </style>
 </head>
 <body>
-<header>
-<div style="max-width:800px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
-  <div style="font-weight:800;color:#0b69ff">WAVE</div>
-  <div><button onclick="location.href='index.html'">홈</button></div>
-</div>
-</header>
-
-<div class="container">
-  <h2>글 수정</h2>
+<div class="wrap">
+  <h2>글쓰기</h2>
   <form id="form">
-    <input id="title" placeholder="제목">
-    <div id="editor"></div>
-    <label>이미지 첨부 (여러장 가능)</label>
-    <input id="imageInput" type="file" accept="image/*" multiple>
-    <div id="existingImages"></div>
-    <div id="adminTimeRow" style="display:none">
-      <label>작성일시 (관리자만)</label>
-      <input id="manualTime" type="datetime-local">
+    <div class="row">
+      <label>게시판</label>
+      <select id="boardSelect">
+        <option value="free">자유게시판</option>
+        <option value="info">정보게시판</option>
+        <option value="stock">주식정보</option>
+        <option value="futures">해외선물정보</option>
+        <option value="profit">수익인증</option>
+      </select>
     </div>
-    <div style="display:flex;gap:8px">
-      <button type="submit">저장</button>
-      <button type="button" onclick="location.href='index.html'" style="background:#ccc;color:#222">취소</button>
+    <div class="row"><label>제목</label><input id="title" required></div>
+    <div class="row"><label>내용</label><div id="editor"></div></div>
+    <div class="row"><label>작성자</label><input id="authorDisplay" disabled></div>
+    <div class="row" id="pinnedBox" style="display:none">
+      <label><input type="checkbox" id="pinned"> 상단 고정</label>
     </div>
+    <div class="row" id="adminTimeRow" style="display:none">
+      <label>임의 작성시간 (관리자 전용)</label>
+      <input type="datetime-local" id="customTime" step="1">
+    </div>
+    <button type="submit">등록</button>
   </form>
 </div>
 
-<script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
+<!-- Quill JS -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, updateDoc, Timestamp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey:"AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
-  authDomain:"wave-free-community.firebaseapp.com",
-  projectId:"wave-free-community",
-  storageBucket:"wave-free-community.appspot.com",
-  messagingSenderId:"1072639024866",
-  appId:"1:1072639024866:web:934998f5e4a7eb02bd88bb"
+  apiKey: "AIzaSyCXBJyjdgekPMNKXFrznVrfLez04353zck",
+  authDomain: "wave-free-community.firebaseapp.com",
+  projectId: "wave-free-community",
+  storageBucket: "wave-free-community.appspot.com",
+  messagingSenderId: "1072639024866",
+  appId: "1:1072639024866:web:934998f5e4a7eb02bd88bb"
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const params = new URLSearchParams(window.location.search);
-const id = params.get('id');
+const CLOUDINARY_UPLOAD = "https://api.cloudinary.com/v1_1/dlzhh9997/upload";
+const UPLOAD_PRESET = "wavecm";
 let currentUser=null, currentUserDoc=null;
 
-// Quill 에디터 초기화
-const quill = new Quill('#editor', { theme: 'snow', placeholder:'내용을 입력하세요' });
+onAuthStateChanged(auth, async (u)=>{
+  if(!u){ alert('로그인 후 이용 가능합니다.'); location.href='index.html'; return; }
+  currentUser = u;
+  try{ 
+    const snap = await getDoc(doc(db,'users',u.uid)); 
+    currentUserDoc = snap.exists()? snap.data(): null; 
+  }catch(e){ currentUserDoc = null; }
 
-// Cloudinary 업로드 함수
-async function uploadImage(file){
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', 'wavecm');
-  const res = await fetch('https://api.cloudinary.com/v1_1/dlzhh9997/image/upload', { method:'POST', body:formData });
-  const data = await res.json();
-  return data.secure_url || '';
+  document.getElementById('authorDisplay').value = currentUserDoc?.nickname || currentUser.displayName || currentUser.email;
+
+  if(currentUserDoc?.role === 'admin'){ 
+    document.getElementById('adminTimeRow').style.display='block'; 
+    document.getElementById('pinnedBox').style.display='block'; 
+  } else {
+    const select = document.getElementById('boardSelect');
+    [...select.options].forEach(opt=>{
+      if(opt.value==="stock" || opt.value==="futures"){
+        opt.disabled = true;
+      }
+    });
+  }
+});
+
+async function uploadToCloudinary(file){
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', UPLOAD_PRESET);
+  const res = await fetch(CLOUDINARY_UPLOAD,{method:'POST',body:form});
+  const j = await res.json();
+  return j.secure_url || j.url || '';
 }
 
-// 이미지 붙여넣기 / 드래그앤드롭 처리
-quill.getModule('toolbar').addHandler('image', () => {});
-quill.root.addEventListener('paste', async (e) => {
-  const clipboard = e.clipboardData;
-  if(!clipboard) return;
-  const items = clipboard.items;
-  for(let i=0;i<items.length;i++){
-    const item = items[i];
-    if(item.type.indexOf('image')!==-1){
+// Quill 에디터 설정
+const toolbarOptions = [
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ 'color': [] }, { 'background': [] }],
+  [{ 'header': [1, 2, 3, false] }],
+  ['link', 'image'],
+  [{ 'align': [] }],
+  ['clean']
+];
+
+const quill = new Quill('#editor', {
+  theme: 'snow',
+  modules: { toolbar: toolbarOptions }
+});
+
+// 이미지 버튼 핸들러
+quill.getModule('toolbar').addHandler('image', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.click();
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (file) {
+      const url = await uploadToCloudinary(file);
+      const range = quill.getSelection();
+      quill.insertEmbed(range.index, 'image', url);
+    }
+  };
+});
+
+// 붙여넣기 이미지 처리
+quill.root.addEventListener("paste", async (e) => {
+  const items = e.clipboardData.items;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
       e.preventDefault();
       const file = item.getAsFile();
-      const url = await uploadImage(file);
+      const url = await uploadToCloudinary(file);
       const range = quill.getSelection();
       quill.insertEmbed(range.index, 'image', url);
     }
   }
 });
 
-// 파일첨부 시 자동 업로드
-document.getElementById('imageInput').addEventListener('change', async (e)=>{
-  const files = Array.from(e.target.files);
-  for(const f of files){
-    const url = await uploadImage(f);
-    const range = quill.getSelection() || { index: quill.getLength() };
-    quill.insertEmbed(range.index, 'image', url);
-    quill.setSelection(range.index + 1);
-  }
-});
-
-onAuthStateChanged(auth, async (u)=>{
-  if(!u){ alert('로그인 필요'); location.href='index.html'; return; }
-  currentUser=u;
-  try{ const us = await getDoc(doc(db,'users',u.uid)); if(us.exists()) currentUserDoc=us.data(); }catch(e){}
-
-  const snap = await getDoc(doc(db,'posts',id));
-  if(!snap.exists()) return alert('게시물 없음');
-  const p = snap.data();
-
-  if (!(p.authorUid===currentUser.uid || p.authorId===currentUser.uid || (currentUserDoc && currentUserDoc.role==='admin'))){
-    alert('권한 없음'); location.href='index.html'; return;
-  }
-
-  document.getElementById('title').value = p.title || '';
-  if(p.images && p.images.length>0){
-    const ex = document.getElementById('existingImages');
-    p.images.forEach((url,idx)=>{
-      const img = document.createElement('img');
-      img.src = url;
-      img.dataset.idx = idx;
-      ex.appendChild(img);
-    });
-  }
-
-  if(currentUserDoc && currentUserDoc.role==='admin') document.getElementById('adminTimeRow').style.display='block';
-
-  quill.setContents(quill.clipboard.convert(p.content || ''));
-});
-
+// 글 저장
 document.getElementById('form').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  try{
-    const title = document.getElementById('title').value.trim();
-    const content = quill.root.innerHTML;
-    const manual = document.getElementById('manualTime').value;
-    const data = { title, content };
-    if(manual) data.createdAt = Timestamp.fromDate(new Date(manual));
-
-    // 기존 이미지도 포함
-    const existing = Array.from(document.getElementById('existingImages').children).map(img=>img.src);
-    if(existing.length>0) data.images = existing;
-
-    await updateDoc(doc(db,'posts',id), data);
-    alert('수정 완료'); location.href=`post.html?id=${id}`;
-  }catch(err){
-    console.error(err); alert('수정 실패: '+(err.message||err));
+  if(!currentUser) return alert('로그인 필요');
+  const board = document.getElementById('boardSelect').value;
+  if(currentUserDoc?.role !== 'admin' && (board==="stock" || board==="futures")){
+    return alert("해당 게시판은 관리자만 작성할 수 있습니다.");
   }
+
+  const title=document.getElementById('title').value;
+  const content=quill.root.innerHTML; // HTML 저장
+
+  const data={
+    board,title,content,
+    uid: currentUser.uid,
+    authorUid:currentUser.uid,
+    authorNickname:currentUserDoc?.nickname || currentUser.email,
+    createdAt: serverTimestamp(),
+    pinned: document.getElementById('pinned').checked || false
+  };
+  if(currentUserDoc?.role==='admin' && document.getElementById('customTime').value){
+    data.createdAt = new Date(document.getElementById('customTime').value);
+  }
+
+  await addDoc(collection(db,'posts'), data);
+  alert('등록 완료'); location.href=`board.html?board=${board}`;
 });
 </script>
 </body>
