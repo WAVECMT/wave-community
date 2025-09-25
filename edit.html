@@ -10,9 +10,10 @@ header{background:#fff;padding:12px;border-bottom:1px solid #ddd}
 .container{max-width:800px;margin:20px auto;padding:12px}
 input,textarea{width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:8px}
 .btn{background:#0b69ff;color:#fff;border:0;padding:8px 12px;border-radius:6px;cursor:pointer}
-.img-thumb{width:100px;height:70px;object-fit:cover;position:relative;margin-right:4px;border:1px solid #ccc;border-radius:4px;cursor:pointer}
-.img-container{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;align-items:center;}
-.remove-btn{position:absolute;top:0;right:0;background:red;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:12px;cursor:pointer;}
+#existingImages{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.existing-img{position:relative;display:inline-block}
+.existing-img img{width:100px;height:70px;object-fit:cover;border-radius:4px}
+.remove-img{position:absolute;top:0;right:0;background:red;color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:18px;text-align:center}
 </style>
 </head>
 <body>
@@ -27,16 +28,15 @@ input,textarea{width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;ma
 <form id="form">
 <input id="title" placeholder="제목">
 <textarea id="content" rows="8" placeholder="내용"></textarea>
-
-<div id="existingImages" class="img-container"></div>
-
 <label>이미지 첨부 (여러장 가능)</label>
 <input id="imageInput" type="file" accept="image/*" multiple>
+<div id="existingImages"></div>
 
-<div id="adminOptions" style="display:flex;gap:12px;align-items:center;margin:8px 0">
-<label id="pinnedLabel" style="display:none"><input type="checkbox" id="pinned"> 공지사항</label>
-<div id="adminTimeRow" style="display:none"><label>작성일시</label><input id="manualTime" type="datetime-local"></div>
+<div style="margin-bottom:8px">
+<label><input type="checkbox" id="pinned"> 공지사항</label>
 </div>
+
+<div id="adminTimeRow" style="display:none"><label>작성일시 (관리자만)</label><input id="manualTime" type="datetime-local"></div>
 
 <div style="display:flex;gap:8px">
 <button class="btn" type="submit">저장</button>
@@ -64,80 +64,98 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 const params = new URLSearchParams(window.location.search);
-const id = params.get('id');
+const postId = params.get('id');
 
-let currentUser=null, currentUserDoc=null;
-let existingImages = []; // 기존 이미지 URL
-let removedImages = [];  // 삭제 이미지 URL
+let currentUser = null;
+let currentUserDoc = null;
+let existingImages = []; // 기존 이미지 + 새로 붙여넣기 이미지 URL 저장
 
 onAuthStateChanged(auth, async (u)=>{
-  if(!u){ alert('로그인 후 이용가능'); location.href='index.html'; return; }
-  currentUser = u;
-  try{ const us = await getDoc(doc(db,'users',u.uid)); if(us.exists()) currentUserDoc = us.data(); }catch(e){}
+    if(!u){ alert('로그인 후 이용가능'); location.href='index.html'; return; }
+    currentUser = u;
+    try{ const us = await getDoc(doc(db,'users',u.uid)); if(us.exists()) currentUserDoc = us.data(); }catch(e){}
 
-  const snap = await getDoc(doc(db,'posts',id));
-  if(!snap.exists()) return alert('게시물 없음');
-  const p = snap.data();
+    const snap = await getDoc(doc(db,'posts',postId));
+    if(!snap.exists()) return alert('게시물 없음');
+    const p = snap.data();
+    if (!(p.authorUid === currentUser.uid || p.authorId === currentUser.uid || (currentUserDoc && currentUserDoc.role === 'admin'))) {
+      alert('권한 없음');
+      location.href = 'index.html';
+      return;
+    }
 
-  if (!(p.authorUid === currentUser.uid || p.authorId === currentUser.uid || (currentUserDoc && currentUserDoc.role === 'admin'))) {
-    alert('권한 없음'); location.href = 'index.html'; return;
-  }
-
-  document.getElementById('title').value = p.title || '';
-  document.getElementById('content').value = p.content || '';
-
-  existingImages = p.images || (p.imageUrl ? [p.imageUrl] : []);
-  renderExistingImages();
-
-  if(currentUserDoc && currentUserDoc.role==='admin'){
-    document.getElementById('adminOptions').style.display='flex';
-    document.getElementById('pinnedLabel').style.display='block';
+    document.getElementById('title').value = p.title || '';
+    document.getElementById('content').value = p.content || '';
     document.getElementById('pinned').checked = p.pinned || false;
-    document.getElementById('adminTimeRow').style.display='block';
+
+    const exDiv = document.getElementById('existingImages');
+    if(p.images && p.images.length>0){
+      p.images.forEach(url => addExistingImage(url));
+    } else if(p.imageUrl){
+      addExistingImage(p.imageUrl);
+    }
+
+    if(currentUserDoc && currentUserDoc.role === 'admin') document.getElementById('adminTimeRow').style.display='block';
+});
+
+// 기존 이미지 추가 및 삭제 버튼
+function addExistingImage(url){
+  existingImages.push(url);
+  const exDiv = document.getElementById('existingImages');
+  const wrapper = document.createElement('div'); wrapper.className='existing-img';
+  const img = document.createElement('img'); img.src = url;
+  const btn = document.createElement('button'); btn.className='remove-img'; btn.innerText='×';
+  btn.onclick = ()=>{ exDiv.removeChild(wrapper); existingImages = existingImages.filter(u=>u!==url); };
+  wrapper.appendChild(img); wrapper.appendChild(btn);
+  exDiv.appendChild(wrapper);
+}
+
+// 클립보드 붙여넣기 이미지 업로드
+document.getElementById('content').addEventListener('paste', async (e)=>{
+  const items = e.clipboardData.items;
+  for(const item of items){
+    if(item.type.indexOf('image')!==-1){
+      const file = item.getAsFile();
+      const url = await uploadImage(file);
+      addExistingImage(url);
+    }
   }
 });
 
-// 이미지 렌더링
-function renderExistingImages(){
-  const container = document.getElementById('existingImages');
-  container.innerHTML='';
-  existingImages.forEach((url, idx)=>{
-    const wrapper = document.createElement('div'); wrapper.style.position='relative';
-    const img = document.createElement('img'); img.src=url; img.className='img-thumb';
-    const btn = document.createElement('button'); btn.className='remove-btn'; btn.innerText='×';
-    btn.onclick = ()=>{ removedImages.push(url); existingImages.splice(idx,1); renderExistingImages(); };
-    wrapper.appendChild(img); wrapper.appendChild(btn);
-    container.appendChild(wrapper);
-  });
-}
-
-// 클라우드 업로드
+// 이미지 업로드
 async function uploadImage(file){
-  const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', "wavecm");
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', "wavecm");
   const res = await fetch('https://api.cloudinary.com/v1_1/dlzhh9997/image/upload', { method:'POST', body:fd });
-  const data = await res.json(); return data.secure_url || '';
+  const data = await res.json();
+  return data.secure_url || '';
 }
 
+// submit
 document.getElementById('form').addEventListener('submit', async (e)=>{
   e.preventDefault();
   try{
     const title = document.getElementById('title').value.trim();
     const content = document.getElementById('content').value.trim();
     const files = Array.from(document.getElementById('imageInput').files || []);
-    const uploaded = [];
     for(const f of files){
-      try{ const url = await uploadImage(f); if(url) uploaded.push(url); }catch(err){ console.warn('upload failed',err); }
+      const url = await uploadImage(f);
+      addExistingImage(url);
     }
-    const pinned = currentUserDoc?.role==='admin' ? document.getElementById('pinned').checked : false;
-    const manual = currentUserDoc?.role==='admin' ? document.getElementById('manualTime').value : null;
 
-    const data = { title, content, images:[...existingImages, ...uploaded], pinned };
+    const data = { title, content, images: existingImages, pinned: document.getElementById('pinned').checked };
+    const manual = document.getElementById('manualTime').value;
     if(manual) data.createdAt = Timestamp.fromDate(new Date(manual));
+    else data.createdAt = serverTimestamp();
 
-    await updateDoc(doc(db,'posts',id), data);
+    await updateDoc(doc(db,'posts',postId), data);
     alert('수정 완료');
-    location.href = `post.html?id=${id}`;
-  }catch(err){ console.error(err); alert('수정 실패: '+(err.message||err)); }
+    location.href = `post.html?id=${postId}`;
+  }catch(err){
+    console.error('수정 중 오류', err);
+    alert('수정 실패: ' + (err.message || err));
+  }
 });
 </script>
 </body>
